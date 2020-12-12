@@ -1,36 +1,30 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/yonasstephen/s0/store/handler"
+	"github.com/spf13/viper"
+	"github.com/yonasstephen/s0/server"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	// setup static directory
-	fs := http.FileServer(http.Dir("./static"))
-
-	// setup router
-	r := mux.NewRouter()
-	r.HandleFunc("/upload", handler.UploadHandler).Methods(http.MethodPost)
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
-
-	srv := &http.Server{
-		Handler:      r,
-		Addr:         fmt.Sprintf("127.0.0.1:%s", port),
-		WriteTimeout: 5 * time.Second,
-		ReadTimeout:  5 * time.Second,
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("./bin/")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			log.Fatal("failed to read config:", err)
+		}
 	}
 
-	log.Printf("Running s0 on port %s...", port)
-	log.Fatal(srv.ListenAndServe())
+	conf := server.Config{
+		LogLevel:     viper.GetString("LOG_LEVEL"),
+		Port:         viper.GetInt("PORT"),
+		ReadTimeout:  viper.GetDuration("SERVER_WRITE_TIMEOUT"),
+		WriteTimeout: viper.GetDuration("SERVER_READ_TIMEOUT"),
+	}
+
+	server := server.NewServer(conf)
+	server.Start()
 }
